@@ -1,0 +1,48 @@
+1,Goku,text,"Hey Usain! I've heard you're the fastest man on Earth. How do you train to be so fast?",2023-06-10 09:00:00+00:00,joy,positive,0.985
+2,Usain Bolt,text,"Hey Goku! I train hard every day, focusing on sprinting techniques and strength training. What about you? How do you get so fast?",2023-06-24 09:01:00+00:00,joy,positive,0.994
+3,Goku,text,"Well, I do a lot of intense training too, but I also have a secret... Super Saiyan power! 💪",2023-06-24 09:02:00+00:00,joy,positive,0.997
+4,Usain Bolt,text,"Wow, that's incredible! I wish I had that kind of power. What's it like to go beyond your limits like that?",2023-07-08 09:03:00+00:00,joy,positive,0.996
+5,Goku,text,It's amazing! The rush of energy is like nothing else. But it takes a lot of discipline and control.,2023-07-09 09:04:00+00:00,joy,positive,0.999
+6,Usain Bolt,text,"I can imagine. Pushing my own limits on the track feels similar, I guess. Any tips for improving speed?",2023-10-11 09:05:00+00:00,joy,positive,0.998
+7,Goku,text,"Stay focused, keep pushing your limits, and never give up! Also, a balanced diet and proper rest are crucial.",2024-08-08 09:06:00+00:00,joy,positive,0.999
+8,Usain Bolt,text,"Thanks, Goku! I'll keep that in mind. Maybe one day I can run as fast as you fly.",2024-08-08 09:07:00+00:00,joy,positive,0.999
+9,Goku,text,"You're already amazing, Usain! Just keep up the great work and who knows? Maybe you'll reach Super Saiyan speed! 💪",2024-08-08 09:08:00+00:00,joy,positive,0.999
+10,Usain Bolt,text,"Haha, I'd love that! Thanks for the chat, Goku. Keep saving the world!",2024-08-08 09:09:00+00:00,joy,positive,0.999
+11,Goku,text,"Anytime, Usain! Keep breaking those records! 🏅",2024-08-08 09:10:00+00:00,joy,positive,0.999
+12,Usain Bolt,sticker,,2024-08-08 09:11:00+00:00,joy,positive,0
+13,Goku,audio,,2024-08-08 09:12:00+00:00,joy,positive,0
+14,Usain Bolt,text,"Goku, have you ever raced against anyone on Earth?",2024-08-08 09:13:00+00:00,sadness,negative,0.987
+15,Goku,text,Not really. Most people can't keep up with me. But I've raced against other Saiyans and even some aliens! 👽,2024-08-08 09:14:00+00:00,joy,positive,0.995
+16,Usain Bolt,text,That sounds intense! Do you think I could keep up with you if I trained as hard as you?,2024-08-08 09:15:00+00:00,sadness,negative,0.998
+17,Goku,text,"With your determination, you could get pretty close! But Super Saiyan speed is on another level.",2024-08-08 09:16:00+00:00,joy,positive,0.996
+18,Usain Bolt,text,"Well, I'll keep pushing my limits then. Maybe one day we can have a friendly race.",2024-08-08 09:17:00+00:00,joy,positive,0.999
+19,Goku,text,"That would be fun! I'd love to see how fast you can go.",2024-08-08 09:18:00+00:00,joy,positive,0.999
+20,Usain Bolt,text,"By the way, have you ever had to use your speed to save someone?",2024-08-08 09:19:00+00:00,sadness,negative,0.994
+21,Goku,text,Many times! Speed is crucial in battles and rescues. It's saved my friends and the world more than once.,2024-08-08 09:20:00+00:00,joy,positive,0.999
+22,Usain Bolt,text,"That's amazing. I use my speed to inspire others, but you've literally saved lives.",2024-08-08 09:21:00+00:00,joy,positive,0.998
+23,Goku,text,"Inspiration is just as important, Usain. You motivate people to be their best selves.",2024-08-08 09:22:00+00:00,joy,positive,0.999
+24,Usain Bolt,text,"Thanks, Goku. That means a lot coming from a hero like you.",2024-08-08 09:23:00+00:00,joy,positive,0.999
+25,Goku,text,"You're welcome! So, what are your goals for the future?",2024-08-08 09:24:00+00:00,sadness,negative,0.997
+26,Usain Bolt,text,I want to keep pushing the limits of human speed and maybe explore new sports. How about you?,2024-08-08 09:25:00+00:00,joy,positive,0.995
+27,Goku,text,"I want to keep training, protect Earth, and get stronger. There's always a new challenge!",2024-08-08 09:26:00+00:00,joy,positive,0.999
+28,Usain Bolt,text,That's the spirit! Always striving for more.,2024-08-08 09:27:00+00:00,joy,positive,0.999
+29,Goku,photo,,2024-08-08 09:28:00+00:00,joy,positive,0
+30,Usain Bolt,text,"Hey, nice photo! Where was that taken?",2024-08-08 09:29:00+00:00,sadness,negative,0.998
+31,Goku,text,"That was on Planet Namek. Beautiful place, but it had its share of dangers.",2024-08-08 09:30:00+00:00,fear,negative,0.996
+32,Usain Bolt,text,"Wow, I'd love to see it someday. If only I could travel through space like you.",2024-08-08 09:31:00+00:00,joy,positive,0.997
+33,Goku,text,Maybe someday you will! The universe is full of surprises.,2024-08-08 09:32:00+00:00,joy,positive,0.999
+34,Usain Bolt,text,"Goku, do you ever get scared before a big fight?",2024-08-08 09:33:00+00:00,fear,negative,0.996
+35,Goku,text,"Sometimes, but I use that fear to fuel my determination. It's what keeps me going.",2024-08-08 09:34:00+00:00,fear,negative,0.997
+36,Usain Bolt,text,I feel the same way before a big race. That adrenaline rush is something else.,2024-08-08 09:35:00+00:00,joy,positive,0.999
+37,Goku,text,Exactly! It's what makes us push our limits.,2024-08-08 09:36:00+00:00,joy,positive,0.999
+38,Usain Bolt,text,"Do you ever relax, Goku? Or is it all training and fighting?",2024-08-08 09:37:00+00:00,sadness,negative,0.995
+39,Goku,text,I do relax! I love spending time with my family and eating good food. 🍜,2024-08-08 09:38:00+00:00,joy,positive,0.999
+40,Usain Bolt,text,Same here! Nothing beats a good meal after a hard day's work.,2024-08-08 09:39:00+00:00,joy,positive,0.999
+41,Goku,text,Absolutely! Maybe we can share a meal someday.,2024-08-08 09:40:00+00:00,joy,positive,0.999
+42,Usain Bolt,text,"I'd love that, Goku! Let's make it happen.",2024-08-08 09:41:00+00:00,joy,positive,0.999
+43,Goku,text,"It's a date! Until then, keep being awesome, Usain.",2024-08-08 09:42:00+00:00,joy,positive,0.999
+44,Usain Bolt,text,"You too, Goku. Take care! 👋🏻",2024-08-08 09:43:00+00:00,joy,positive,0.999
+45,Goku,text,Bye!,2024-08-08 09:44:00+00:00,joy,positive,0.999
+45,Goku,audio,,2024-08-08 09:44:00+00:00,joy,positive,0.999
+45,Usain Bolt,photo,,2024-08-08 09:44:00+00:00,joy,positive,0.999
+45,Usain Bolt,photo,,2024-08-08 09:44:00+00:00,joy,positive,0.999
