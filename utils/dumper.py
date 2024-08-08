@@ -56,7 +56,7 @@ def conversation_dump(chat_name):
     emotion_classifier = pipeline(
         "text-classification",
         model="MilaNLProc/feel-it-italian-emotion",
-        device="mps",
+        device=getenv("DEVICE_ML"),
     )
 
     # create output folder
