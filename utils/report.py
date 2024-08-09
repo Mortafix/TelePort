@@ -251,19 +251,11 @@ def build_report_from_json(filepath):
     report.tot_per_user = data["tot_per_user"]
     report.words = data["words"]
     report.words_per_user = data["words_per_user"]
-    report.lengths = [
-        (*msg[:4], datetime.fromisoformat(msg[4]), msg[5:]) for msg in data["lengths"]
-    ]
+    report.lengths = data["lengths"]
     report.len_chars = data["len_chars"]
     report.len_mean = data["len_mean"]
     report.len_std = data["len_std"]
-    report.lengths_per_user = {
-        user: [
-            [(*msg[:4], datetime.fromisoformat(msg[4]), msg[5:]) for msg in messages],
-            *data,
-        ]
-        for user, (messages, *data) in data["lengths_per_user"].items()
-    }
+    report.lengths_per_user = data["lengths_per_user"]
     report.phrases_2 = data["phrases_2"]
     report.phrases_3 = data["phrases_3"]
     report.phrases_2_per_user = data["phrases_2_per_user"]
