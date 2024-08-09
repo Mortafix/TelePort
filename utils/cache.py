@@ -26,4 +26,5 @@ def save_json_report(report):
 
 def remove_all_json_report():
     report_folder = path.join(getenv("SCRIPT_FOLDER"), "reports")
-    rmtree(report_folder)
+    if path.exists(report_folder):
+        rmtree(report_folder)
