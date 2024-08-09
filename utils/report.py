@@ -1,6 +1,7 @@
 from collections import Counter
 from csv import reader
 from datetime import datetime
+from pickle import dump, load
 from statistics import mean, stdev
 
 from dotenv import load_dotenv
@@ -84,13 +85,14 @@ def messages_analysis(data):
 
 
 class Report:
-    def __init__(self, filepath):
-        self.filepath = filepath
-        self.data_by_user = self.get_data_per_user(reader(open(filepath)))
-        self.data = sum(self.data_by_user.values(), [])
-        self.get_text_and_words()
-        self.get_text_and_words_by_user()
-        self.build()
+    def __init__(self, filepath=None):
+        if filepath:
+            self.filepath = filepath
+            self.data_by_user = self.get_data_per_user(reader(open(filepath)))
+            self.data = sum(self.data_by_user.values(), [])
+            self.get_text_and_words()
+            self.get_text_and_words_by_user()
+            self.build()
 
     def get_data_per_user(self, csv_reader):
         data_by_user = dict()
@@ -151,3 +153,126 @@ class Report:
         self.emoji_per_user = messages_emoji(self.all_words_by_user)
         self.sentiments, self.emotions = messages_analysis(self.data)
         self.analysis_user = messages_analysis(self.data_by_user)
+
+    def to_json(self, filepath):
+        attributes_dict = {
+            "filepath": self.filepath,
+            "data_by_user": {
+                user: [
+                    {
+                        "message_id": m_id,
+                        "user": user,
+                        "type": m_type,
+                        "text": text,
+                        "date": date.isoformat(),
+                        "emotion": emot,
+                        "sentiment": sent,
+                        "score": score,
+                    }
+                    for m_id, user, m_type, text, date, emot, sent, score in messages
+                ]
+                for user, messages in self.data_by_user.items()
+            },
+            "data": [
+                {
+                    "message_id": m_id,
+                    "user": user,
+                    "type": m_type,
+                    "text": text,
+                    "date": date.isoformat(),
+                    "emotion": emot,
+                    "sentiment": sent,
+                    "score": score,
+                }
+                for m_id, user, m_type, text, date, emot, sent, score in self.data
+            ],
+            "text": self.text,
+            "all_words": self.all_words,
+            "text_words": self.text_words,
+            "text_by_user": self.text_by_user,
+            "all_words_by_user": self.all_words_by_user,
+            "text_words_by_user": self.text_words_by_user,
+            "tot": self.tot,
+            "tot_year": self.tot_year,
+            "tot_month": self.tot_month,
+            "tot_per_user": self.tot_per_user,
+            "words": self.words,
+            "words_per_user": self.words_per_user,
+            "lengths": self.lengths,
+            "len_chars": self.len_chars,
+            "len_mean": self.len_mean,
+            "len_std": self.len_std,
+            "lengths_per_user": self.lengths_per_user,
+            "phrases_2": self.phrases_2,
+            "phrases_3": self.phrases_3,
+            "phrases_2_per_user": self.phrases_2_per_user,
+            "phrases_3_per_user": self.phrases_3_per_user,
+            "types": self.types,
+            "types_per_user": self.types_per_user,
+            "emojis": self.emojis,
+            "emoji_per_user": self.emoji_per_user,
+            "sentiments": self.sentiments,
+            "emotions": self.emotions,
+            "analysis_user": self.analysis_user,
+        }
+        return dump(attributes_dict, open(filepath, "wb+"))
+
+
+def build_report_from_json(filepath):
+    data = load(open(filepath, "rb"))
+    report = Report()
+    report.filepath = filepath
+    report.data_by_user = {
+        user: [
+            (
+                message["message_id"],
+                message["user"],
+                message["type"],
+                message["text"],
+                datetime.fromisoformat(message["date"]),
+                message["emotion"],
+                message["sentiment"],
+                float(message["score"]),
+            )
+            for message in messages
+        ]
+        for user, messages in data["data_by_user"].items()
+    }
+    report.data = sum(report.data_by_user.values(), [])
+    report.text = data["text"]
+    report.all_words = data["all_words"]
+    report.text_words = data["text_words"]
+    report.text_by_user = data["text_by_user"]
+    report.all_words_by_user = data["all_words_by_user"]
+    report.text_words_by_user = data["text_words_by_user"]
+    report.tot = data["tot"]
+    report.tot_year = data["tot_year"]
+    report.tot_month = data["tot_month"]
+    report.tot_per_user = data["tot_per_user"]
+    report.words = data["words"]
+    report.words_per_user = data["words_per_user"]
+    report.lengths = [
+        (*msg[:4], datetime.fromisoformat(msg[4]), msg[5:]) for msg in data["lengths"]
+    ]
+    report.len_chars = data["len_chars"]
+    report.len_mean = data["len_mean"]
+    report.len_std = data["len_std"]
+    report.lengths_per_user = {
+        user: [
+            [(*msg[:4], datetime.fromisoformat(msg[4]), msg[5:]) for msg in messages],
+            *data,
+        ]
+        for user, (messages, *data) in data["lengths_per_user"].items()
+    }
+    report.phrases_2 = data["phrases_2"]
+    report.phrases_3 = data["phrases_3"]
+    report.phrases_2_per_user = data["phrases_2_per_user"]
+    report.phrases_3_per_user = data["phrases_3_per_user"]
+    report.types = data["types"]
+    report.types_per_user = data["types_per_user"]
+    report.emojis = data["emojis"]
+    report.emoji_per_user = data["emoji_per_user"]
+    report.sentiments = data["sentiments"]
+    report.emotions = data["emotions"]
+    report.analysis_user = data["analysis_user"]
+    return report

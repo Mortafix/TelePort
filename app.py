@@ -5,8 +5,17 @@ from os import getenv, path, walk
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
+from utils.cache import (get_json_report, remove_all_json_report,
+                         save_json_report)
 from utils.charts import BarChart, DoubleBarChart, LineChart, PieChart
 from utils.report import Report
+
+st.set_page_config(
+    page_title="TelePort",
+    page_icon="📡",
+    layout="centered",
+    menu_items=None,
+)
 
 load_dotenv()
 MEDALS = ["🥇", "🥈", "🥉"]
@@ -22,9 +31,13 @@ def get_dataset():
     }
 
 
-@st.cache_data(persist=True, show_spinner=False)
-def get_report(chat_name):
-    return Report(chat_name)
+@st.cache_data(persist=True, show_spinner="Building **report**..")
+def get_report(filepath):
+    if report := get_json_report(filepath):
+        return report
+    report = Report(filepath)
+    save_json_report(report)
+    return report
 
 
 @st.dialog("Conversation is locked 🔒")
@@ -56,6 +69,9 @@ def app():
     # choose dataset
     if st.button("Clear cache 🗑️"):
         st.cache_data.clear()
+        st.session_state.clear()
+        remove_all_json_report()
+        st.rerun()
     DATASETS = get_dataset()
     if username_selection := st.selectbox(
         "Conversations", DATASETS, None, placeholder="Choose a conversation"
