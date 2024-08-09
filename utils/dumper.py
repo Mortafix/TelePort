@@ -1,7 +1,8 @@
 from csv import reader, writer
-from os import getenv, mkdir, path
+from os import getenv, mkdir, path, walk
 from sys import argv
 from time import sleep
+from warnings import simplefilter
 
 from dotenv import load_dotenv
 from telethon.sync import TelegramClient
@@ -11,6 +12,7 @@ from telethon.tl.types import (MessageMediaContact, MessageMediaDocument,
 from tqdm import tqdm
 from transformers import pipeline
 
+simplefilter(action="ignore", category=FutureWarning)
 load_dotenv()
 BATCH_SIZE = 500
 
@@ -81,6 +83,8 @@ def conversation_dump(chat_name):
 
     with client:
         total_messages = client.get_messages(chat_name, limit=0).total - msgs_dumped
+        if not total_messages:
+            return
 
         # get messages from chat in batch
         for i in tqdm(range(0, total_messages, BATCH_SIZE)):
@@ -127,4 +131,14 @@ def conversation_dump(chat_name):
 
 if __name__ == "__main__":
     chat_name = argv[-1]
-    conversation_dump(chat_name)
+    if chat_name == "--all":
+        conversation_folder = path.join(getenv("SCRIPT_FOLDER"), "conversations")
+        csv_files = list(walk(conversation_folder))[0][2]
+        for file in csv_files:
+            chat_name, extension = path.splitext(file)
+            if extension != ".csv":
+                continue
+            print(f"> Updating {chat_name} conversation")
+            conversation_dump(chat_name)
+    else:
+        conversation_dump(chat_name)
