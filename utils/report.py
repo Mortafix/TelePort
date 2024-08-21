@@ -1,6 +1,7 @@
 from collections import Counter
 from csv import reader
 from datetime import datetime
+from lzma import open as lzma_open
 from pickle import dump, load
 from statistics import mean, stdev
 
@@ -215,11 +216,13 @@ class Report:
             "emotions": self.emotions,
             "analysis_user": self.analysis_user,
         }
-        return dump(attributes_dict, open(filepath, "wb+"))
+        with lzma_open(filepath, "wb") as file:
+            return dump(attributes_dict, file)
 
 
 def build_report_from_json(filepath):
-    data = load(open(filepath, "rb"))
+    with lzma_open(filepath, "rb") as file:
+        data = load(file)
     report = Report()
     report.filepath = filepath
     report.data_by_user = {

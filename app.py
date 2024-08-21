@@ -408,14 +408,14 @@ def app():
         line_chart.build()
         st.altair_chart(line_chart.chart, use_container_width=True)
 
-        # ---- footer
-        st.divider()
-        st.caption(
-            "Designed with ♥️ by [Mortafix](https://moris.dev) with "
-            "[Streamlit](https://streamlit.io). Check out the code [HERE]()."
-        )
-
     sentiment_charts()
+
+    # ---- footer
+    st.divider()
+    st.caption(
+        "Designed with ♥️ by [Mortafix](https://moris.dev) with "
+        "[Streamlit](https://streamlit.io). Check out the code [HERE]()."
+    )
 
 
 if __name__ == "__main__":
