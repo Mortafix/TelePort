@@ -1,6 +1,7 @@
 from collections import Counter
 from datetime import datetime
 from os import getenv, path, walk
+from time import perf_counter
 
 import pandas as pd
 import streamlit as st
@@ -70,7 +71,7 @@ def app():
     if st.button("Clear cache 🗑️"):
         st.cache_data.clear()
         st.session_state.clear()
-        remove_all_json_report()
+        # remove_all_json_report()
         st.rerun()
     DATASETS = get_dataset()
     if username_selection := st.selectbox(
@@ -89,7 +90,9 @@ def app():
             st.rerun()
         return
 
+    start = perf_counter()
     report = get_report(DATASETS.get(username))
+    print(f"Loaded {username} report in {perf_counter() - start:.3f}s")
     st.divider()
 
     # report

@@ -2,8 +2,10 @@ from collections import Counter
 from csv import reader
 from datetime import datetime
 from lzma import open as lzma_open
+from os import getenv
 from pickle import dump, load
 from statistics import mean, stdev
+from time import perf_counter
 
 from dotenv import load_dotenv
 from emoji import EMOJI_DATA
@@ -25,6 +27,18 @@ download_nltk_resources()
 # ---- build
 
 
+def timer(f):
+    def wrapper(*args, **kwargs):
+        start = perf_counter()
+        res = f(*args, **kwargs)
+        if getenv("TIMER") and isinstance(args[0], list):
+            print(f"{f.__name__}: {perf_counter() - start:.3f}s")
+        return res
+
+    return wrapper
+
+
+@timer
 def messages_count(data):
     if isinstance(data, dict):
         return {user: messages_count(messages) for user, messages in data.items()}
@@ -37,23 +51,22 @@ def messages_count(data):
     return total, total_year, total_month
 
 
+@timer
 def words_count(words):
     if isinstance(words, dict):
         return {user: words_count(w) for user, w in words.items()}
     return dict(Counter(words).most_common())
 
 
-def phrase_count(words, n_words=2):
+@timer
+def phrase_count(words, n=2):
     if isinstance(words, dict):
-        return {user: phrase_count(w, n_words) for user, w in words.items()}
-    phrase_counts = Counter()
-    prhases = [
-        " ".join(words[i : i + n_words]) for i in range(len(words) - (n_words - 1))
-    ]
-    phrase_counts.update(prhases)
-    return dict(phrase_counts.most_common())
+        return {user: phrase_count(w, n) for user, w in words.items()}
+    phrases = [" ".join(words[i : i + n]) for i in range(len(words) - (n - 1))]
+    return dict(Counter(phrases).most_common())
 
 
+@timer
 def messages_length(data):
     if isinstance(data, dict):
         return {user: messages_length(messages) for user, messages in data.items()}
@@ -62,6 +75,7 @@ def messages_length(data):
     return msg_per_len, msg_chars, mean(msg_chars), stdev(msg_chars)
 
 
+@timer
 def messages_types(data):
     if isinstance(data, dict):
         return {user: messages_types(messages) for user, messages in data.items()}
@@ -69,6 +83,7 @@ def messages_types(data):
     return dict(types_counter.most_common())
 
 
+@timer
 def messages_emoji(words):
     if isinstance(words, dict):
         return {user: messages_emoji(w) for user, w in words.items()}
@@ -76,6 +91,7 @@ def messages_emoji(words):
     return dict(Counter(all_emoji).most_common())
 
 
+@timer
 def messages_analysis(data):
     if isinstance(data, dict):
         return {user: messages_analysis(messages) for user, messages in data.items()}
@@ -220,6 +236,7 @@ class Report:
             return dump(attributes_dict, file)
 
 
+@timer
 def build_report_from_json(filepath):
     with lzma_open(filepath, "rb") as file:
         data = load(file)
