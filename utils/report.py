@@ -31,7 +31,7 @@ def timer(f):
     def wrapper(*args, **kwargs):
         start = perf_counter()
         res = f(*args, **kwargs)
-        if getenv("TIMER") and isinstance(args[0], list):
+        if getenv("TIMER") == "true" and isinstance(args[0], list):
             print(f"{f.__name__}: {perf_counter() - start:.3f}s")
         return res
 
@@ -43,12 +43,14 @@ def messages_count(data):
     if isinstance(data, dict):
         return {user: messages_count(messages) for user, messages in data.items()}
     total = len(data)
-    total_year, total_month = dict(), dict()
+    total_year, total_month, total_day = dict(), dict(), dict()
     for _, _, _, _, date, *_ in data:
         month_key = f"{date.month}.{date.year}"
+        day_key = f"{date.day}.{date.month}.{date.year}"
         total_year[date.year] = total_year.get(date.year, 0) + 1
         total_month[month_key] = total_month.get(month_key, 0) + 1
-    return total, total_year, total_month
+        total_day[day_key] = total_day.get(day_key, 0) + 1
+    return total, total_year, total_month, total_day
 
 
 @timer
@@ -152,7 +154,9 @@ class Report:
             ]
 
     def build(self):
-        self.tot, self.tot_year, self.tot_month = messages_count(self.data)
+        self.tot, self.tot_year, self.tot_month, self.tot_day = messages_count(
+            self.data
+        )
         self.tot_per_user = messages_count(self.data_by_user)
         self.words = words_count(self.text_words)
         self.words_per_user = words_count(self.text_words_by_user)
@@ -212,6 +216,7 @@ class Report:
             "tot": self.tot,
             "tot_year": self.tot_year,
             "tot_month": self.tot_month,
+            "tot_day": self.tot_day,
             "tot_per_user": self.tot_per_user,
             "words": self.words,
             "words_per_user": self.words_per_user,
@@ -268,6 +273,7 @@ def build_report_from_json(filepath):
     report.tot = data["tot"]
     report.tot_year = data["tot_year"]
     report.tot_month = data["tot_month"]
+    report.tot_day = data["tot_day"]
     report.tot_per_user = data["tot_per_user"]
     report.words = data["words"]
     report.words_per_user = data["words_per_user"]

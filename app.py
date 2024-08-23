@@ -1,13 +1,13 @@
 from collections import Counter
 from datetime import datetime
 from os import getenv, path, walk
+from re import search
 from time import perf_counter
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
-from utils.cache import (get_json_report, remove_all_json_report,
-                         save_json_report)
+from utils.cache import get_json_report, save_json_report
 from utils.charts import BarChart, DoubleBarChart, LineChart, PieChart
 from utils.report import Report
 
@@ -25,8 +25,15 @@ MEDALS = ["🥇", "🥈", "🥉"]
 def get_dataset():
     conversation_folder = path.join(getenv("SCRIPT_FOLDER"), "conversations")
     csv_file = list(walk(conversation_folder))[0][2]
+
+    def get_chat_name(file):
+        renaming, _, username = search(r"(\w+)_\[(g\-)?(\w+)\]", file).groups()
+        return f"{renaming} [{username}]"
+
     return {
-        path.splitext(file)[0]: path.abspath(path.join(conversation_folder, file))
+        get_chat_name(path.splitext(file)[0]): path.abspath(
+            path.join(conversation_folder, file)
+        )
         for file in csv_file
         if path.splitext(file)[1] == ".csv"
     }
@@ -71,16 +78,16 @@ def app():
     if st.button("Clear cache 🗑️"):
         st.cache_data.clear()
         st.session_state.clear()
-        # remove_all_json_report()
         st.rerun()
     DATASETS = get_dataset()
-    if username_selection := st.selectbox(
+    if chat_selection := st.selectbox(
         "Conversations", DATASETS, None, placeholder="Choose a conversation"
     ):
-        st.session_state.username = username_selection
+        st.session_state.username = chat_selection
     if not st.session_state.get("username"):
         return
-    username = st.session_state.username
+    name, username = search(r"(\w+)\s\[(\w+)\]", st.session_state.username).groups()
+    username = username.lower()
 
     # insert password
     chat_password = getenv(f"PASSWORD_{username.upper()}")
@@ -91,12 +98,14 @@ def app():
         return
 
     start = perf_counter()
-    report = get_report(DATASETS.get(username))
+    report = get_report(DATASETS.get(st.session_state.username))
     print(f"Loaded {username} report in {perf_counter() - start:.3f}s")
     st.divider()
 
     # report
-    st.header(f"Conversation report with :blue[@{username}]", divider="blue")
+    st.header(
+        f"Conversation report with :blue[@{name.replace('_', ' ')}]", divider="blue"
+    )
     st.markdown(
         f"Messages range from **{report.data[0][4]:%d.%m.%Y}** to "
         f"**{report.data[-1][4]:%d.%m.%Y}** for a total of **{report.tot}** messages"
@@ -104,7 +113,7 @@ def app():
 
     # ---- frequency
     st.subheader("Message frequency", divider="gray")
-    cols = st.columns(len(report.tot_per_user) + 1)
+    cols = st.columns(3)
     cols[0].metric("Total messages", report.tot)
     for i, (user, user_tot) in enumerate(report.tot_per_user.items(), 1):
         cols[i % 3].metric(
@@ -122,11 +131,15 @@ def app():
     # bar chart | messages per year
     most_year = sorted(report.tot_year, key=lambda x: -report.tot_year.get(x))[0]
     most_month = sorted(report.tot_month, key=lambda x: -report.tot_month.get(x))[0]
+    most_day = sorted(report.tot_day, key=lambda x: -report.tot_day.get(x))
     most_msg_month_label = datetime(*map(int, most_month.split(".")[::-1]), 1)
+    most_msg_day_label = datetime(*map(int, most_day[0].split(".")[::-1]))
     st.markdown(
         f"The year with most messages was **{most_year}** with "
-        f"**{report.tot_year.get(most_year)}** and the month was "
-        f"**{most_msg_month_label:%B %Y}** with **{report.tot_month.get(most_month)}**"
+        f"**{report.tot_year.get(most_year)}**, the month was "
+        f"**{most_msg_month_label:%B %Y}** with **{report.tot_month.get(most_month)}**,"
+        f" the day was **{most_msg_day_label:%d %B %Y}** with "
+        f"**{report.tot_day.get(most_day[0])}**"
     )
 
     @st.fragment
@@ -155,6 +168,21 @@ def app():
         st.altair_chart(bar_chart.chart, use_container_width=True)
 
     messages_count_charts()
+
+    # messages per day
+    mean_per_day = sum(report.tot_day.values()) / len(report.tot_day)
+    st.markdown(
+        "The average number of messages per day throughout the "
+        f"conversation is **{mean_per_day:.1f}**"
+    )
+    cols = st.columns(3)
+    for i, (day, medal) in enumerate(zip(most_day[:3], MEDALS)):
+        label = datetime(*map(int, day.split(".")[::-1]))
+        cols[i % 3].metric(
+            f"{medal} :gray[| **{report.tot_day.get(day)}** messages]",
+            format(label, "%d %b %Y"),
+            delta_color="off",
+        )
 
     # ---- types
     st.subheader("Message types", divider="gray")
@@ -196,7 +224,7 @@ def app():
         f"The average message length is **{report.len_mean:.1f}** characters with a "
         f"standard deviation of **{report.len_std:.1f}** characters."
     )
-    cols = st.columns(len(report.tot_per_user) + 1)
+    cols = st.columns(3)
     cols[0].metric("Total characters", sum(report.len_chars))
     for i, (user, user_tot) in enumerate(report.lengths_per_user.items(), 1):
         cols[i % 3].metric(
@@ -413,11 +441,39 @@ def app():
 
     sentiment_charts()
 
+    # ---- conversation scanner
+    st.subheader("Conversation scanner", divider="gray")
+
+    @st.fragment
+    def day_conversation():
+        day = st.select_slider(
+            "Day selection",
+            report.tot_day,
+            format_func=lambda x: format(
+                datetime(*map(int, x.split(".")[::-1])), "%d %B %Y"
+            ),
+        )
+        messages = [
+            message
+            for message in report.data
+            if f"{message[4].day}.{message[4].month}.{message[4].year}" == day
+        ]
+        st.subheader("Messages")
+        for _, name, type, text, date, _, _, _ in sorted(messages, key=lambda x: x[4]):
+            with st.chat_message(name):
+                caption = f"**{name}** on **{date:%d %B %Y}** at **{date:%H:%M}** "
+                caption += "writes" if type == "text" else "send a"
+                st.caption(caption)
+                st.write(text or type)
+
+    day_conversation()
+
     # ---- footer
     st.divider()
     st.caption(
         "Designed with ♥️ by [Mortafix](https://moris.dev) with "
-        "[Streamlit](https://streamlit.io). Check out the code [HERE]()."
+        "[Streamlit](https://streamlit.io). Check out the code "
+        "[HERE](https://github.com/Mortafix/TelePort)."
     )
 
 
