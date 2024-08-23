@@ -236,7 +236,7 @@ def app():
     st.write("The following are the **3 longest messages** in the chat")
     for _, who, _, message, date, *_ in report.lengths:
         with st.expander(
-            f":gray-background[{who}] on **{date:%d %B %Y}** "
+            f":gray-background[{who}] on **{date:%d %B %Y}** at **{date:%H:%M}** "
             f"wrote a **{len(message)}** characters long message"
         ):
             st.write(f":gray[{message}]")
@@ -245,8 +245,8 @@ def app():
     for i, (user, (messages, _, _, _)) in enumerate(report.lengths_per_user.items()):
         _, who, _, message, date, *_ = messages[0]
         with cols[i % 2].expander(
-            f":gray-background[{who}] on **{date:%d %B %Y}** wrote "
-            f"a **{len(message)}** characters long message"
+            f":gray-background[{who}] on **{date:%d %B %Y}** at **{date:%H:%M}** wrote "
+            f"a **{len(message)}** characters long message",
         ):
             st.write(f":gray[{message}]")
 
@@ -461,11 +461,12 @@ def app():
         ]
         st.subheader("Messages")
         for _, name, type, text, date, _, _, _ in sorted(messages, key=lambda x: x[4]):
-            with st.chat_message(name):
-                caption = f"**{name}** on **{date:%d %B %Y}** at **{date:%H:%M}** "
-                caption += "writes" if type == "text" else "send a"
-                st.caption(caption)
-                st.write(text or type)
+            caption = (
+                f":gray-background[{name}] on **{date:%d %B %Y}** at **{date:%H:%M}** "
+            )
+            caption += "wrote " if type == "text" else "sent a"
+            with st.expander(caption, expanded=True):
+                st.write(f":gray[{text or type}]")
 
     day_conversation()
 
