@@ -1,6 +1,7 @@
+from argparse import ArgumentParser
 from csv import reader, writer
 from os import getenv, mkdir, path, walk
-from sys import argv
+from re import search
 from time import sleep
 from warnings import simplefilter
 
@@ -49,7 +50,15 @@ def clean_message(text):
     return text
 
 
-def conversation_dump(chat_name):
+def get_recent_chats(n_chats):
+    client = TelegramClient("chatty", getenv("API_ID"), getenv("API_HASH"))
+    client.start(phone=getenv("PHONE_NUMBER"))
+    for dialog in client.iter_dialogs(n_chats):
+        print(f"Chat: {dialog.name} • ID: {dialog.entity.id}")
+    client.disconnect()
+
+
+def conversation_dump(username, renaming=None, is_group=False, use_first_name=True):
     # init telegram app
     client = TelegramClient("chatty", getenv("API_ID"), getenv("API_HASH"))
     client.start(phone=getenv("PHONE_NUMBER"))
@@ -65,7 +74,9 @@ def conversation_dump(chat_name):
     conversations_folder = path.join(getenv("SCRIPT_FOLDER"), "conversations")
     if not path.exists(conversations_folder):
         mkdir(conversations_folder)
-    dump_file = path.join(conversations_folder, f"{chat_name}.csv")
+    filename = f"{renaming.replace(' ', '_') or username}"
+    filename += f"_[{'g-' if is_group else ''}{username}].csv"
+    dump_file = path.join(conversations_folder, filename)
 
     # check if report already exists
     last_id, msgs_dumped = 0, 0
@@ -76,27 +87,30 @@ def conversation_dump(chat_name):
                 last_id = int(data[-1][0])
                 msgs_dumped = len(data)
 
-    # get personal info
-    me = client.get_me()
-    user_nick = me.username
-    user_id = me.id
+    if is_group:
+        username = client.get_entity(int(username))
 
     with client:
-        total_messages = client.get_messages(chat_name, limit=0).total - msgs_dumped
+        total_messages = client.get_messages(username, limit=0).total - msgs_dumped
         if not total_messages:
             return
 
+        chat_users = dict()
         # get messages from chat in batch
         for i in tqdm(range(0, total_messages, BATCH_SIZE)):
             messages = client.get_messages(
-                chat_name, limit=BATCH_SIZE, min_id=last_id, reverse=True
+                username, limit=BATCH_SIZE, min_id=last_id, reverse=True
             )
             last_id = messages[-1].id
             data = list()
             for message in messages:
+                # check if real message
+                user = message.sender_id
+                if not user:
+                    continue
+                # sentiment analysis
                 message_text = clean_message(message.text)
                 message_type = get_message_type(message)
-                # sentiment analysis
                 analysis = ("-", "-", 0)
                 if message_text:
                     try:
@@ -110,10 +124,17 @@ def conversation_dump(chat_name):
                         pass
 
                 # add to data
+                if user not in chat_users:
+                    user_entity = client.get_entity(user)
+                    chat_users[user] = (
+                        user_entity.first_name
+                        if use_first_name
+                        else user_entity.username
+                    )
                 data.append(
                     [
                         message.id,
-                        user_nick if message.sender_id == user_id else chat_name,
+                        chat_users.get(user),
                         message_type,
                         message_text,
                         message.date,
@@ -129,16 +150,59 @@ def conversation_dump(chat_name):
             sleep(0.5)
 
 
+def args_parser():
+    parser = ArgumentParser(
+        prog="dumper",
+        description="Dump every Telegram conversation",
+        usage="dumper [CHAT_ID_OR_USERNAME] [-l 10] [-g]",
+        epilog="Example: dumper Mortafix",
+    )
+    parser.add_argument(
+        "chat",
+        nargs="?",
+        default=None,
+        help="Telegram username or chat ID",
+    )
+    parser.add_argument(
+        "-l", "--list", type=int, help="list last N Telegram chats", metavar=("N")
+    )
+    parser.add_argument("--name", type=str, help="rename chat", metavar=("NAME"))
+    parser.add_argument(
+        "-g", "--group", action="store_true", help="chat ID provided is a group chat"
+    )
+    parser.add_argument(
+        "--all", action="store_true", help="updated every chat already dumped"
+    )
+    parser.add_argument(
+        "--use-username",
+        action="store_true",
+        help="use usernames instead of first names",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    chat_name = argv[-1]
-    if chat_name == "--all":
+    args = args_parser()
+
+    # list
+    if args.list:
+        get_recent_chats(args.list)
+        exit()
+
+    # update every chat
+    if args.all:
         conversation_folder = path.join(getenv("SCRIPT_FOLDER"), "conversations")
         csv_files = list(walk(conversation_folder))[0][2]
         for file in csv_files:
-            chat_name, extension = path.splitext(file)
-            if extension != ".csv":
+            filename, extension = path.splitext(file)
+            if extension != ".csv" or filename == "example_[example]":
                 continue
-            print(f"> Updating {chat_name} conversation")
-            conversation_dump(chat_name)
-    else:
-        conversation_dump(chat_name)
+            renaming, is_group, username = search(
+                r"(\w+)_\[(g\-)?(\w+)\]", filename
+            ).groups()
+            print(f"> Updating {renaming.replace('_', ' ')} conversation")
+            conversation_dump(username, renaming, bool(is_group))
+        exit()
+
+    # dump chat
+    conversation_dump(args.chat, args.name, args.group, not args.use_username)
