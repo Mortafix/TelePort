@@ -85,6 +85,7 @@ def app():
     ):
         st.session_state.username = chat_selection
     if not st.session_state.get("username"):
+        footer()
         return
     name, username = search(r"(\w+)\s\[(\w+)\]", st.session_state.username).groups()
     username = username.lower()
@@ -469,6 +470,10 @@ def app():
     day_conversation()
 
     # ---- footer
+    footer()
+
+
+def footer():
     st.divider()
     st.caption(
         "Designed with ♥️ by [Mortafix](https://moris.dev) with "
