@@ -74,7 +74,12 @@ def messages_length(data):
         return {user: messages_length(messages) for user, messages in data.items()}
     msg_per_len = sorted(data, key=lambda x: -len(x[3]))[:3]
     msg_chars = [len(text) for _, _, _, text, *_ in data]
-    return msg_per_len, msg_chars, mean(msg_chars), stdev(msg_chars)
+    return (
+        msg_per_len,
+        msg_chars,
+        mean(msg_chars),
+        stdev(msg_chars) if len(msg_chars) > 1 else 0,
+    )
 
 
 @timer

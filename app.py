@@ -269,6 +269,8 @@ def app():
         )
     cols = st.columns(2)
     for i, (user, words) in enumerate(report.words_per_user.items()):
+        if not words:
+            continue
         word, count = list(words.items())[0]
         cols[i % 2].metric(
             f"Most used by :gray-background[{user}] :gray[| **{count}** occurences]",
@@ -339,6 +341,8 @@ def app():
     }
     cols = st.columns(2)
     for i, (user, phrases) in enumerate(phrases_per_user.items()):
+        if not phrases:
+            continue
         phrase, count = list(phrases.items())[-1]
         cols[i % 2].metric(
             f"Most used by :gray-background[{user}] :gray[| **{count}** occurences]",
