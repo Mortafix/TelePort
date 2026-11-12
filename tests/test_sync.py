@@ -185,6 +185,23 @@ class SyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result[2]['kind'],'bot')
         self.assertNotIn('text',result[0])
 
+    async def test_missing_sender_is_resolved_once_and_stored_name_is_preserved(self):
+        missing=message(1);missing.sender=None
+        calls=[]
+        async def get_sender():
+            calls.append(1)
+            return SimpleNamespace(first_name='Alice',last_name='Example')
+        missing.get_sender=get_sender
+        first=await self.service._named_record('chat',missing)
+        assert first['sender_name']=='Alice Example'
+        await self.service._named_record('chat',missing)
+        assert len(calls)==1
+        save_messages('chat',[first],settings=self.settings)
+        second={**first,'id':2,'sender_name':first['sender_id']}
+        save_messages('chat',[second],settings=self.settings)
+        with connect(self.settings) as db:
+            assert db.execute("SELECT sender_name FROM messages WHERE id=2 AND chat_id='chat'").fetchone()[0]=='Alice Example'
+
     async def test_incremental_sync_handles_empty_history_and_resume(self):
         result = await self.service.sync_chat("chat")
         self.assertEqual(result["saved"], 0)

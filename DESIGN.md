@@ -23,3 +23,7 @@ Control refinement: the sidebar toggle is a directional chevron; in the compact 
 Final layout refinement: compact navigation reduces the gap below the brand; the labeled collapse action moves above the administration divider, becoming icon-only in the rail. Telegram and AI use matching icon/status/subtitle rows. Chat image and name form a left column beside vertically stacked owner choices with matching labels. Import is a searchable list with useful Telegram metadata and persistent selection across filters.
 
 Analysis planner: the conversation table exposes a dedicated Analisi icon beside Gestisci, Aggiorna and Elimina. Analysis opens its own focused dialog; chat settings no longer contain an inline estimate. A styled keyboard-accessible range slider drives cumulative input/output totals and the oldest selected timestamp. Queue submission confirms success; empty/error/unconfigured states are explicit.
+
+Access and moment refinement: admin credentials never share state with guest unlock. Conversation rows include accessible analysis progress. Tone chips show full filtered counts without a pending chip; a custom select orders moments by newest, oldest or message volume. Owner and participant names are resolved before display, including quotes.
+
+Conversation export: an icon-only download action above the moment reader exports only the selected moment. Moments search and ordering share one row on desktop and mobile.

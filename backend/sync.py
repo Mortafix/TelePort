@@ -66,6 +66,11 @@ def save_messages(chat_id: str, records: list[dict], cursor: int | None = None, 
     with database(settings) as conn:
         changes = conn.total_changes
         for record in records:
+            record=dict(record)
+            name=str(record.get('sender_name') or '').strip()
+            if not name or name==str(record.get('sender_id')) or name.lstrip('-').isdigit():
+                previous=conn.execute("SELECT sender_name FROM messages WHERE chat_id=? AND sender_id=? AND sender_name<>sender_id AND sender_name<>'' ORDER BY date DESC,id DESC LIMIT 1",(str(chat_id),record.get('sender_id'))).fetchone()
+                if previous and not previous[0].lstrip('-').isdigit():record['sender_name']=previous[0]
             conn.execute(
                 "INSERT INTO messages (" + ",".join(MESSAGE_FIELDS) + ") VALUES (" + ",".join("?" for _ in MESSAGE_FIELDS) + ") " +
                 ("ON CONFLICT(chat_id,id) DO UPDATE SET " + ",".join(f"{f}=excluded.{f}" for f in MESSAGE_FIELDS[2:]) +
@@ -397,6 +402,25 @@ class TelegramService:
                 matches += 1
         return matches >= 2
 
+    async def _named_record(self,chat_id,message):
+        record=message_record(chat_id,message)
+        if record['sender_name']!=record['sender_id']:
+            return record
+        if not hasattr(self,'_sender_names'):self._sender_names={}
+        sid=record['sender_id']
+        if sid not in self._sender_names:
+            self._sender_names[sid]=None
+            getter=getattr(message,'get_sender',None)
+            if getter:
+                from telethon.errors import RPCError
+                try:
+                    sender=await getter()
+                    name=' '.join(filter(None,[getattr(sender,'first_name',None),getattr(sender,'last_name',None)])) or getattr(sender,'title',None) or getattr(sender,'username',None)
+                    self._sender_names[sid]=name
+                except (RPCError,ValueError,OSError):pass
+        if self._sender_names.get(sid):record['sender_name']=self._sender_names[sid]
+        return record
+
     async def sync_chat(self, chat_id, progress=None):
         async with self._guard:
             with database(self.settings) as conn:
@@ -415,7 +439,7 @@ class TelegramService:
                     async for message in client.iter_messages(entity, min_id=cursor, reverse=True):
                         if not getattr(message, "id", None) or not getattr(message, "date", None):
                             continue
-                        batch.append(message_record(str(chat_id), message))
+                        batch.append(await self._named_record(str(chat_id),message))
                         if len(batch) >= 250:
                             next_cursor = max(item["id"] for item in batch)
                             changed += save_messages(str(chat_id), batch, next_cursor, self.settings)
@@ -463,7 +487,7 @@ class TelegramService:
             if message is None:
                 deleted.append(expected_id)
             elif getattr(message, "date", None) and int(message.id) == expected_id:
-                records.append(message_record(chat_id, message))
+                records.append(await self._named_record(chat_id,message))
         return save_messages(chat_id, records, settings=self.settings) + mark_deleted(chat_id, deleted, self.settings)
 
     def _install_events(self, client):
@@ -479,7 +503,7 @@ class TelegramService:
             chat = conn.execute("SELECT id FROM chats WHERE telegram_id=?", (str(event.chat_id),)).fetchone()
         if chat and getattr(event.message, "date", None):
             # Event delivery can have gaps: only history sync advances the durable history cursor.
-            if save_messages(chat["id"], [message_record(chat["id"], event.message)], settings=self.settings):
+            if save_messages(chat["id"], [await self._named_record(chat["id"],event.message)], settings=self.settings):
                 self._schedule_rebuild(chat["id"])
 
     async def _on_deleted(self, event):

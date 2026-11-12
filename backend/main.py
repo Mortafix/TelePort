@@ -234,9 +234,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not session.admin:
             scope=" AND c.id IN ("+",".join("?" for _ in session.unlocked)+")"
             params=session.unlocked
+        from .sentiment import PROMPT_VERSION
         with connect(settings) as connection:
+            progress={r["chat_id"]:dict(r) for r in connection.execute("SELECT chat_id,COUNT(*) AS total,SUM(CASE WHEN analysis IS NOT NULL AND model=? AND json_extract(analysis,'$.prompt_version')=? THEN 1 ELSE 0 END) AS completed FROM moments GROUP BY chat_id",(settings.openai_model,PROMPT_VERSION))} if session.admin else {}
             rows = connection.execute("SELECT c.*,MIN(m.date) AS first_message,MAX(m.date) AS last_message,COUNT(m.id) AS message_count,GROUP_CONCAT(DISTINCT substr(m.date,1,4)) AS years FROM chats c LEFT JOIN messages m ON m.chat_id=c.id AND m.deleted=0 WHERE c.archived=0"+scope+" GROUP BY c.id ORDER BY c.title COLLATE NOCASE",params).fetchall()
-        return {"items": [{"id": row["id"], "title": row["title"], "username": row["username"], "locked": bool(row["password_encrypted"]), "accessible": not row["password_encrypted"] or bool(session and (session.admin or row["id"] in session.unlocked)), "message_count": row["message_count"], "first_message": row["first_message"], "last_message": row["last_message"], "last_sync": row["last_sync"], "gap_minutes": row["gap_minutes"], "appearance": json.loads(row["appearance"]), "years": sorted((row["years"] or "").split(",")) if row["years"] else []} for row in rows]}
+        return {"items": [{"id": row["id"], "title": row["title"], "username": row["username"], "locked": bool(row["password_encrypted"]), "accessible": not row["password_encrypted"] or bool(session and (session.admin or row["id"] in session.unlocked)), "message_count": row["message_count"], "first_message": row["first_message"], "last_message": row["last_message"], "last_sync": row["last_sync"], "gap_minutes": row["gap_minutes"], "appearance": json.loads(row["appearance"]), "analysis_progress":progress.get(row["id"],{"total":0,"completed":0}), "years": sorted((row["years"] or "").split(",")) if row["years"] else []} for row in rows]}
 
     def unlock_password(payload, request, chat_id=None):
         session=auth.require_csrf(request,settings)
@@ -300,10 +302,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return decorate_report(result, chat, settings)
 
     @app.get("/api/chats/{chat_id}/moments")
-    def moments(chat_id: str, request: Request, start: str | None = None, end: str | None = None, tone: str | None = None, q: str = "", limit: int = 100, offset: int = 0):
+    def moments(chat_id: str, request: Request, start: str | None = None, end: str | None = None, tone: str | None = None, q: str = "", limit: int = 100, offset: int = 0, sort: str = "newest"):
         chat_access(chat_id, request)
         if not 1 <= limit <= 500 or offset < 0:
             raise HTTPException(422, "Parametri di paginazione non validi.")
+        if sort not in {"newest","oldest","messages"}:
+            raise HTTPException(422,"Ordinamento non valido.")
         if tone not in {None, "all", "positive", "neutral", "negative", "mixed", "uncertain", "pending"}:
             raise HTTPException(422, "Filtro del tono non valido.")
         lo, hi = _date_bounds(start, end, settings)
@@ -318,20 +322,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if q:
             query += " AND (instr(lower(COALESCE(json_extract(analysis,'$.context'),'')),lower(?))>0 OR instr(lower(COALESCE(json_extract(analysis,'$.context_parts'),'')),lower(?))>0 OR EXISTS (SELECT 1 FROM messages AS hit WHERE hit.chat_id=moments.chat_id AND hit.deleted=0 AND hit.date>=moments.start AND hit.date<=moments.end AND instr(lower(hit.text),lower(?))>0))"
             params.extend([q[:200]]*3)
+        counts_query=query;counts_params=list(params)
         if tone == "pending":
             query += " AND analysis IS NULL"
         elif tone and tone != "all":
             query += " AND COALESCE(json_extract(analysis,'$.label'),'uncertain')=? AND analysis IS NOT NULL"
             params.append(tone)
         with connect(settings) as connection:
+            counts={r['tone']:r['count'] for r in connection.execute("SELECT CASE WHEN analysis IS NULL THEN 'pending' ELSE COALESCE(json_extract(analysis,'$.label'),'uncertain') END AS tone,COUNT(*) AS count "+counts_query+" GROUP BY tone",counts_params)}
+            counts['all']=sum(counts.values())
             total = connection.execute("SELECT COUNT(*) " + query, params).fetchone()[0]
+            order={'newest':'start DESC,id DESC','oldest':'start ASC,id ASC','messages':'json_array_length(message_ids) DESC,start DESC,id DESC'}[sort]
             # Count membership in SQLite, avoiding transfer/decoding of the whole archive's IDs.
-            rows = connection.execute("SELECT id,chat_id,start,end,analysis,model,analyzed_at,json_array_length(message_ids) AS message_count " + query + " ORDER BY start DESC,id DESC LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
-        return {"items": [_public_moment(row) for row in rows], "total": total}
+            rows = connection.execute("SELECT id,chat_id,start,end,analysis,model,analyzed_at,json_array_length(message_ids) AS message_count " + query + " ORDER BY "+order+" LIMIT ? OFFSET ?", params + [limit, offset]).fetchall()
+        return {"items": [_public_moment(row) for row in rows], "total": total,"tone_counts":counts}
 
     @app.get("/api/chats/{chat_id}/messages")
     def messages(chat_id: str, request: Request, day: str | None = None, moment_id: str | None = None, q: str = "", sender: str | None = None, limit: int = 100, offset: int = 0):
-        chat_access(chat_id, request)
+        chat=chat_access(chat_id, request)
         if not 1 <= limit <= 500 or offset < 0 or len(q) > 200:
             raise HTTPException(422, "Parametri di ricerca non validi.")
         params: list = [chat_id]
@@ -362,6 +370,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if m.get('reply_to_id'):
                     target=targets.get(m['reply_to_id'])
                     m['reply_to']=({**target,'text':target['text'][:500]} if target else None)
+        from .customization import chat_people
+        people,_=chat_people(chat,settings);names={p['id']:p['name'] for p in people}
+        for item in items:
+            item['sender_name']=names.get(item['sender_id'],'Partecipante non disponibile')
+            if item.get('reply_to'):item['reply_to']['sender_name']=names.get(item['reply_to']['sender_id'],'Partecipante non disponibile')
         return {"items": items, "total": total}
 
     @app.get("/api/chats/{chat_id}/search")
@@ -395,7 +408,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         auth.require_admin(request, settings)
         from .jobs import list_jobs
         telegram = await request.app.state.telegram.status()
-        return {"telegram": telegram, "openai": {"configured": bool(settings.openai_api_key), "model": settings.openai_model, "analysis_limit": settings.analysis_limit}, "jobs": list_jobs(settings=settings), "demo": settings.demo}
+        from .sentiment import PROMPT_VERSION
+        with connect(settings) as db:
+            analysis_progress={r['chat_id']:dict(r) for r in db.execute("SELECT chat_id,COUNT(*) AS total,SUM(CASE WHEN analysis IS NOT NULL AND model=? AND json_extract(analysis,'$.prompt_version')=? THEN 1 ELSE 0 END) AS completed FROM moments GROUP BY chat_id",(settings.openai_model,PROMPT_VERSION))}
+        return {"analysis_progress":analysis_progress,"telegram": telegram, "openai": {"configured": bool(settings.openai_api_key), "model": settings.openai_model, "analysis_limit": settings.analysis_limit}, "jobs": list_jobs(settings=settings), "demo": settings.demo}
 
     @app.get("/api/admin/overview")
     def admin_overview(request: Request):
@@ -501,6 +517,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from .customization import install, decorate_report
     install(app, settings, chat_access, admin_mutation)
+    from .exports import install as install_exports
+    install_exports(app, settings, chat_access)
 
     frontend = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 

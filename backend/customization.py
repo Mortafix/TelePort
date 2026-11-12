@@ -57,17 +57,43 @@ def resolve_appearance(chat,people,settings):
     return data
 
 
+def chat_people(chat,settings):
+    # Prefer a real name from the latest named record, never a later numeric fallback.
+    with connect(settings) as db:
+        rows=db.execute('SELECT sender_id,sender_name,MAX(date) AS last_seen FROM messages WHERE chat_id=? AND deleted=0 GROUP BY sender_id,sender_name ORDER BY last_seen DESC',(chat['id'],)).fetchall()
+    names={};ids=[]
+    for row in rows:
+        sid=str(row['sender_id'])
+        if sid not in ids: ids.append(sid)
+        name=(row['sender_name'] or '').strip()
+        if name and not re.fullmatch(r'-?\d+',name) and name not in {sid,'service'}:names.setdefault(sid,name)
+    raw=[{'id':sid,'name':names.get(sid,sid)} for sid in ids]
+    appearance=resolve_appearance(chat,raw,settings);owner=profile(settings)
+    for person in raw:
+        sid=person['id'];person['original_name']=person['name']
+        if sid==appearance.get('self_sender_id'): person['name']=owner['name']
+        elif sid not in names:
+            title=str(chat['title'] or '').strip()
+            if appearance['kind']=='direct' and len(raw)==2 and appearance.get('self_sender_id') and title and not re.fullmatch(r'-?\d+',title): person['name']=title
+            elif sid.startswith('legacy:') and not re.fullmatch(r'-?\d+',sid[7:]):person['name']=sid[7:]
+            else:person['name']='Telegram' if sid=='service' else 'Partecipante non disponibile'
+    return raw,appearance
+
+
 def decorate_report(result, chat, settings):
     result=dict(result)
-    appearance=resolve_appearance(chat,result.get('participants',[]),settings)
+    resolved,appearance=chat_people(chat,settings)
+    identities={p['id']:p for p in resolved}
     owner=profile(settings)
     people=[]
     for index,p in enumerate(result.get('participants',[])):
         p=dict(p); own=p['id']==appearance.get('self_sender_id')
-        p.update(original_name=p['name'],is_self=own,color=appearance.get('colors',{}).get(p['id'],['#3159d9','#58a695','#ad7bc4','#c38b45'][index%4]),image=owner.get('image','') if own else appearance.get('image','') if appearance.get('kind','direct')=='direct' else '')
-        if own: p['name']=owner['name']
+        p.update(original_name=identities.get(p['id'],p).get('original_name',p['name']),is_self=own,color=appearance.get('colors',{}).get(p['id'],['#3159d9','#58a695','#ad7bc4','#c38b45'][index%4]),image=owner.get('image','') if own else appearance.get('image','') if appearance.get('kind','direct')=='direct' else '')
+        p['name']=identities.get(p['id'],p)['name']
         people.append(p)
     result['participants']=people
+    if 'activity' in result:
+        result['activity']={**result['activity'],'reply_times':[{**p,'name':identities.get(p['sender_id'],p).get('name','Partecipante non disponibile')} for p in result['activity'].get('reply_times',[])]}
     result['appearance']=appearance
     result['profile']=owner
     result['chat']=dict(result.get('chat',{}))
@@ -108,9 +134,7 @@ def install(app,settings,chat_access,admin_mutation):
     @app.get('/api/admin/chats/{chat_id}/appearance')
     def appearance(chat_id:str,request:Request):
         chat=chat_access(chat_id,request,admin_only=True)
-        with connect(settings) as db:
-            people=[dict(r) for r in db.execute('SELECT sender_id AS id,MAX(sender_name) AS name FROM messages WHERE chat_id=? AND deleted=0 GROUP BY sender_id',(chat_id,))]
-        data=resolve_appearance(chat,people,settings)
+        people,data=chat_people(chat,settings)
         return {'title':chat['title'],'participants':people,**data}
 
     @app.post('/api/admin/chats/{chat_id}/appearance')

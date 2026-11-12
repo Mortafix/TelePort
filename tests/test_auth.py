@@ -465,3 +465,90 @@ def test_analysis_plan_handles_no_pending_moments(client,settings):
     data=client.get('/api/admin/chats/a/estimate').json()
     assert data['options']==[] and data['max_moments']==0
     assert data['estimated_input_tokens']==data['estimated_output_tokens']==0
+
+
+def test_moment_sort_counts_and_analysis_progress(client,settings):
+    from backend.analytics import rebuild_moments
+    from backend.sentiment import PROMPT_VERSION
+    login(client)
+    with connect(settings) as db:
+        for i,when in [(2,'2026-10-25T10:00:00+00:00'),(3,'2026-10-25T10:01:00+00:00'),(4,'2026-10-26T10:00:00+00:00')]:
+            db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date) VALUES('a',?,'1','Alice','ciao',?)",(i,when))
+    rebuild_moments('a',settings)
+    with connect(settings) as db:
+        db.execute("UPDATE moments SET analysis=?,model=? WHERE start LIKE '2026-10-25%'",(json.dumps({'label':'positive','prompt_version':PROMPT_VERSION}),settings.openai_model))
+    response=client.get('/api/chats/a/moments?sort=messages&limit=1').json()
+    assert response['items'][0]['message_count']==2
+    assert response['tone_counts']['all']==3 and response['tone_counts']['positive']==1
+    filtered=client.get('/api/chats/a/moments?tone=positive').json()
+    assert filtered['total']==1 and filtered['tone_counts']['all']==3
+    assert client.get('/api/chats/a/moments?sort=oldest').json()['items'][0]['start'].startswith('2026-10-24')
+    assert client.get('/api/chats/a/moments?sort=newest').json()['items'][0]['start'].startswith('2026-10-26')
+    assert client.get('/api/chats/a/moments?sort=invalid').status_code==422
+    progress=client.get('/api/chats').json()['items'][0]['analysis_progress']
+    assert progress['total']==3 and progress['completed']==1
+    assert client.get('/api/admin/status').json()['analysis_progress']['a']['completed']==1
+
+
+def test_names_prefer_real_history_and_owner_profile(client,settings):
+    headers=login(client)
+    with connect(settings) as db:
+        db.execute("UPDATE chats SET appearance=? WHERE id='a'",(json.dumps({'self_sender_id':'2','kind':'direct'}),))
+        db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date,reply_to_id) VALUES('a',2,'1','1','later','2026-10-25T10:00:00+00:00',1)")
+        db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date) VALUES('a',3,'2','2','owner','2026-10-25T10:01:00+00:00')")
+    client.post('/api/admin/profile',json={'name':'Moris','image':''},headers=headers)
+    people=client.get('/api/chats/a/report').json()['participants']
+    assert {p['id']:p['name'] for p in people}=={'1':'Alice','2':'Moris'}
+    items=client.get('/api/chats/a/messages').json()['items']
+    assert items[1]['sender_name']=='Alice' and items[1]['reply_to']['sender_name']=='Alice'
+    assert items[2]['sender_name']=='Moris'
+    assert {p['name'] for p in client.get('/api/admin/chats/a/appearance').json()['participants']}=={'Alice','Moris'}
+
+
+def test_download_is_scoped_complete_and_uses_names(client,settings):
+    assert client.get('/api/chats/a/download').status_code==403
+    with connect(settings) as db:
+        db.execute("UPDATE chats SET title='Chat è speciale' WHERE id='a'")
+        db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date,reply_to_id) VALUES('a',2,'1','1','**Risposta**','2026-10-25T10:00:00+00:00',1)")
+        db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date,deleted) VALUES('a',3,'1','Alice','CANCELLATO','2026-10-26T10:00:00+00:00',1)")
+        db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date) VALUES('b',2,'2','Bob','ALTRA CHAT','2026-10-25T10:00:00+00:00')")
+    client.post('/api/unlock',json={'password':'alpha'},headers=csrf(client))
+    response=client.get('/api/chats/a/download')
+    assert response.status_code==200
+    assert response.headers['cache-control']=='no-store'
+    assert 'attachment;' in response.headers['content-disposition']
+    assert 'UTF-8' in response.headers['content-disposition']
+    assert '24/10/2026 12:00:00' in response.text
+    assert 'Alice' in response.text and '**Risposta**' in response.text
+    assert '> Alice: ciao ciao' in response.text
+    assert 'ALTRA CHAT' not in response.text and 'CANCELLATO' not in response.text
+    assert response.text.index('ciao ciao')<response.text.index('**Risposta**')
+    assert client.get('/api/chats/b/download').status_code==403
+    login(client)
+    assert client.get('/api/chats/b/download').status_code==200
+
+
+def test_download_streams_beyond_message_page_size(client,settings):
+    login(client)
+    with connect(settings) as db:
+        db.executemany("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date) VALUES('a',?,'1','Alice',?,'2026-10-25T10:00:00+00:00')",[(i,f'messaggio-{i}: '+('è'*120)) for i in range(2,702)])
+    response=client.get('/api/chats/a/download')
+    assert response.status_code==200
+    assert 'messaggio-701:' in response.text
+    assert response.text.count('messaggio-')==700
+    assert response.text.index('messaggio-2:')<response.text.index('messaggio-701:')
+
+
+def test_download_selected_moment_only_and_checks_chat_membership(client,settings):
+    from backend.analytics import rebuild_moments
+    login(client)
+    with connect(settings) as db:
+        db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date) VALUES('a',2,'1','Alice','ALTRO MOMENTO','2026-10-25T10:00:00+00:00')")
+    rebuild_moments('a',settings)
+    moment=client.get('/api/chats/a/moments?sort=oldest').json()['items'][0]
+    response=client.get('/api/chats/a/download',params={'moment_id':moment['id']})
+    assert response.status_code==200 and 'ciao ciao' in response.text
+    assert 'ALTRO MOMENTO' not in response.text
+    assert 'Momento:' in response.text
+    assert client.get('/api/chats/b/download',params={'moment_id':moment['id']}).status_code==404
+    assert client.get('/api/chats/a/download?moment_id=missing').status_code==404

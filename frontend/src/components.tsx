@@ -8,7 +8,7 @@ import {colors,date,Json,labels,num,time,tones} from './api';
 const Markdown=lazy(()=>import('./Markdown'));
 const People=createContext<Json[]>([]);
 export function PeopleProvider({people,children}:{people:Json[],children:ReactNode}){return <People.Provider value={people}>{children}</People.Provider>}
-export function NameChip({id,name}:{id?:string,name:string}){const p=useContext(People).find(p=>p.id===id||p.name===name||p.original_name===name);return <span className="name-chip" style={{color:p?.color,background:p?.color?`${p.color}18`:undefined}}>{p?.name||name}</span>}
+export function NameChip({id,name}:{id?:string,name:string}){const people=useContext(People);const p=people.find(p=>p.id===id)||(!id?people.find(p=>p.name===name||p.original_name===name):undefined);return <span className="name-chip" style={{color:p?.color,background:p?.color?`${p.color}18`:undefined}}>{p?.name||name}</span>}
 export function Spinner({text='Caricamento…'}:{text?:string}) { return <div className="loading" role="status"><LoaderCircle className="spin" size={22}/><span>{text}</span></div>; }
 export function ErrorNotice({message,onDismiss}:{message:string,onDismiss?:()=>void}) {return <div className="notice error" role="alert"><AlertCircle size={18}/><span>{message}</span>{onDismiss&&<button aria-label="Chiudi avviso" className="text-button" onClick={onDismiss}>Chiudi</button>}</div>;}
 export function Empty({title='Nessun risultato',children,action}:{title?:string,children?:ReactNode,action?:ReactNode}) {return <div className="empty"><div className="empty-icon"><MessageSquare size={28}/></div><h2>{title}</h2>{children&&<p>{children}</p>}{action}</div>;}

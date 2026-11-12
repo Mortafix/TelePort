@@ -15,9 +15,9 @@ class ClosingConnection(sqlite3.Connection):
             self.close()
 
 
-def connect(settings: Settings | None = None) -> sqlite3.Connection:
+def connect(settings: Settings | None = None, *, check_same_thread: bool = True) -> sqlite3.Connection:
     settings = settings or get_settings()
-    connection = sqlite3.connect(settings.database_path, timeout=30, factory=ClosingConnection)
+    connection = sqlite3.connect(settings.database_path, timeout=30, factory=ClosingConnection, check_same_thread=check_same_thread)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA busy_timeout=30000")

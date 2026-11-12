@@ -1,5 +1,5 @@
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faArrowDownWideShort,faArrowUpRightFromSquare,faArrowsRotate,faBars,faCalendarDays,faChartColumn,faCheck,faChevronDown,faChevronRight,faCircleExclamation,faClock,faComment,faComments,faCopy,faEye,faEyeSlash,faKey,faLock,faMagnifyingGlass,faPalette,faPaperPlane,faPlus,faRightFromBracket,faShieldHalved,faSliders,faSpinner,faTrashCan,faUser,faXmark,faFaceSmile,faFaceMeh,faFaceFrown,faCircleQuestion,faCircleHalfStroke,faHourglassHalf,faLayerGroup,faBrain} from '@fortawesome/free-solid-svg-icons';
+import {faArrowDownWideShort,faArrowUpRightFromSquare,faArrowsRotate,faBars,faCalendarDays,faChartColumn,faCheck,faChevronDown,faChevronRight,faCircleExclamation,faClock,faComment,faComments,faCopy,faEye,faEyeSlash,faKey,faLock,faMagnifyingGlass,faPalette,faPaperPlane,faPlus,faRightFromBracket,faShieldHalved,faSliders,faSpinner,faTrashCan,faUser,faXmark,faFaceSmile,faFaceMeh,faFaceFrown,faCircleQuestion,faCircleHalfStroke,faHourglassHalf,faLayerGroup,faBrain,faDownload} from '@fortawesome/free-solid-svg-icons';
 export const AlertCircle = ({size=18,className='',...rest}:any)=><FontAwesomeIcon icon={faCircleExclamation} className={className} style={{width:size,height:size}} aria-hidden="true"/>;
 export const LoaderCircle = ({size=18,className='',...rest}:any)=><FontAwesomeIcon icon={faSpinner} className={className} style={{width:size,height:size}} aria-hidden="true"/>;
 export const MessageSquare = ({size=18,className='',...rest}:any)=><FontAwesomeIcon icon={faComment} className={className} style={{width:size,height:size}} aria-hidden="true"/>;
@@ -37,3 +37,5 @@ export const Mixed=({size=16}:any)=><FontAwesomeIcon icon={faCircleHalfStroke} s
 export const Pending=({size=16}:any)=><FontAwesomeIcon icon={faHourglassHalf} style={{width:size,height:size}} aria-hidden="true"/>;
 export const All=({size=16}:any)=><FontAwesomeIcon icon={faLayerGroup} style={{width:size,height:size}} aria-hidden="true"/>;
 export const Brain=({size=18}:any)=><FontAwesomeIcon icon={faBrain} style={{width:size,height:size}} aria-hidden="true"/>;
+
+export const Download=({size=18}:any)=><FontAwesomeIcon icon={faDownload} style={{width:size,height:size}} aria-hidden="true"/>;
