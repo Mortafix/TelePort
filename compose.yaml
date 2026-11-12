@@ -1,0 +1,19 @@
+services:
+  teleport:
+    build: .
+    env_file: .env
+    environment:
+      TELEPORT_DATA_DIR: /app/data
+      TELEGRAM_SESSION_PATH: /app/data/telegram
+    volumes:
+      - teleport-data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  teleport-data:

@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+.venv
+venv
+data
+conversations
+reports
+*.session*
+output
+legacy
+frontend/node_modules
+frontend/dist
+__pycache__
+.pytest_cache
