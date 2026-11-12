@@ -26,7 +26,7 @@ def public_job(row):
     return job
 
 
-def queue_job(kind, chat_id=None, payload=None, settings=None):
+def queue_job(kind, chat_id=None, payload=None, settings=None, reject_existing=False):
     settings = settings or get_settings()
     if kind not in {"sync", "analyze"}:
         raise ValueError("Tipo di attività non valido.")
@@ -53,6 +53,8 @@ def queue_job(kind, chat_id=None, payload=None, settings=None):
                 raise ValueError("Seleziona una conversazione da analizzare.")
             for job in active:
                 if job["chat_id"] == chat_id:
+                    if reject_existing:
+                        raise ValueError("È già presente un’analisi in corso o in coda per questa conversazione.")
                     return job
         if chat_id and not conn.execute("SELECT id FROM chats WHERE id=? AND archived=0", (chat_id,)).fetchone():
             raise ValueError("Conversazione non trovata.")

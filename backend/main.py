@@ -462,7 +462,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(409, "Configura OPENAI_API_KEY sul server prima di avviare l'analisi.")
         from .jobs import queue_job
         try:
-            return queue_job("analyze", chat_id=payload.chat_id, payload={"limit": min(payload.limit, settings.analysis_limit)}, settings=settings)
+            return queue_job("analyze", chat_id=payload.chat_id, payload={"limit": min(payload.limit, settings.analysis_limit)}, settings=settings, reject_existing=True)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 

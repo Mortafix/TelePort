@@ -428,3 +428,40 @@ def test_legacy_owner_selection_and_colors_are_remapped(client,settings):
     assert data['colors']=={'1':'#b76d8b'}
     assert client.post('/api/admin/chats/a/appearance',json={k:data.get(k) for k in ['title','kind','self_sender_id','colors']}|{'image':''},headers=csrf(client)).status_code==200
     assert client.get('/api/chats/a/report').json()['participants'][0]['is_self'] is True
+
+
+def test_analysis_plan_is_cumulative_recent_first_and_skips_current_analysis(client,settings):
+    from backend.analytics import rebuild_moments
+    from backend.sentiment import PROMPT_VERSION
+    settings.analysis_limit=2
+    settings.openai_api_key='fake-provider-not-called'
+    headers=login(client)
+    with connect(settings) as db:
+        for i,day in enumerate((25,26,27),2):
+            db.execute("INSERT INTO messages(chat_id,id,sender_id,sender_name,text,date) VALUES('a',?,'1','Alice',?,?)",(i,'test '*i,f'2026-10-{day}T10:00:00+00:00'))
+    rebuild_moments('a',settings)
+    with connect(settings) as db:
+        db.execute("UPDATE moments SET analysis=?,model=? WHERE chat_id='a' AND start LIKE '2026-10-26%'",(json.dumps({'prompt_version':PROMPT_VERSION}),settings.openai_model))
+    data=client.get('/api/admin/chats/a/estimate').json()
+    assert data['pending_moments']==3 and data['max_moments']==2
+    one,two=data['options']
+    assert one['through'].startswith('2026-10-27')
+    assert two['through'].startswith('2026-10-25')
+    assert one['estimated_total_tokens']==one['estimated_input_tokens']+one['estimated_output_tokens']
+    assert two['estimated_total_tokens']>one['estimated_total_tokens']>0
+    assert 'text' not in one and 'sender_id' not in one
+    queued=client.post('/api/admin/analyze',json={'chat_id':'a','limit':1},headers=headers)
+    assert queued.status_code==200 and queued.json()['payload']['limit']==1
+    assert client.post('/api/admin/analyze',json={'chat_id':'a','limit':2},headers=headers).status_code==409
+
+
+def test_analysis_plan_handles_no_pending_moments(client,settings):
+    from backend.analytics import rebuild_moments
+    from backend.sentiment import PROMPT_VERSION
+    login(client)
+    rebuild_moments('a',settings)
+    with connect(settings) as db:
+        db.execute("UPDATE moments SET analysis=?,model=? WHERE chat_id='a'",(json.dumps({'prompt_version':PROMPT_VERSION}),settings.openai_model))
+    data=client.get('/api/admin/chats/a/estimate').json()
+    assert data['options']==[] and data['max_moments']==0
+    assert data['estimated_input_tokens']==data['estimated_output_tokens']==0

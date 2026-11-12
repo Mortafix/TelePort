@@ -152,15 +152,28 @@ def install(app,settings,chat_access,admin_mutation):
     def estimate(chat_id:str,request:Request):
         chat_access(chat_id,request,admin_only=True)
         from .sentiment import chunks_for,INSTRUCTIONS,PROMPT_VERSION
-        from .analytics import moment_dict
+        from .analytics import moment_dict,rebuild_moments
+        import os
+        rebuild_moments(chat_id,settings)
+        maximum=max(1,min(settings.analysis_limit,1000))
         with connect(settings) as db:
-            moments=[moment_dict(m) for m in db.execute('SELECT * FROM moments WHERE chat_id=?',(chat_id,))]
-            messages={m['id']:dict(m) for m in db.execute('SELECT * FROM messages WHERE chat_id=? AND deleted=0',(chat_id,))}
-        chunks=0;tokens=0;pending=0
-        for m in moments:
-            if m['model']==settings.openai_model and m['analysis'] and m['analysis'].get('prompt_version')==PROMPT_VERSION: continue
-            pending+=1
+            db.execute('BEGIN')
+            moments=[moment_dict(m) for m in db.execute('SELECT * FROM moments WHERE chat_id=? ORDER BY start DESC,id DESC',(chat_id,))]
+            pending=[m for m in moments if not m['analysis'] or m['model']!=settings.openai_model or m['analysis'].get('prompt_version')!=PROMPT_VERSION]
+            selected=pending[:maximum]
+            messages={}
+            if selected:
+                messages={m['id']:dict(m) for m in db.execute('SELECT id,sender_id,date,text,reply_to_id FROM messages WHERE chat_id=? AND deleted=0 AND date>=? AND date<=?',(chat_id,selected[-1]['start'],selected[0]['end']))}
+        chunks=0;tokens=0;options=[]
+        for index,m in enumerate(selected,1):
             for chunk in chunks_for([messages[i] for i in m['message_ids'] if i in messages])[0]:
                 chunks+=1
                 tokens+=(len((INSTRUCTIONS+json.dumps(chunk,ensure_ascii=False)).encode())+2)//3+80
-        return {'estimated_input_tokens':tokens,'estimated_output_tokens':chunks*500,'max_output_tokens':chunks*3000,'requests':chunks,'pending_moments':pending,'model':settings.openai_model,'approximate':True,'note':'Stima indicativa da byte UTF-8, include contesto ripetuto e istruzioni. Output ipotizzato: 500 token a richiesta; non è un preventivo garantito.'}
+            options.append({'count':index,'estimated_input_tokens':tokens,'estimated_output_tokens':chunks*500,
+                'estimated_total_tokens':tokens+chunks*500,'through':m['start'],'latest':selected[0]['end'],'requests':chunks})
+        return {'estimated_input_tokens':tokens,'estimated_output_tokens':chunks*500,'max_output_tokens':chunks*3000,
+            'requests':chunks,'pending_moments':len(pending),'max_moments':len(selected),'options':options,
+            'configured':bool(settings.openai_api_key),'demo':settings.demo,
+            'request_limit':max(1,min(1000,int(os.getenv('TELEPORT_ANALYSIS_REQUEST_LIMIT','100')))),
+            'model':settings.openai_model,'approximate':True,
+            'note':'Stima indicativa, non un conteggio esatto: include istruzioni e contesto; output ipotizzato di 500 token per richiesta.'}
